@@ -536,7 +536,7 @@ function saveWorkout() {
     const workout = {
         metadata: {
             name: document.getElementById('workoutName').value || "My Workout",
-            author: document.getElementById('workoutAuthor').value || "Unknown",
+            author: document.getElementById('workoutAuthor').value || "Zwifter",
             description: document.getElementById('workoutDesc').value || "",
             tags: document.getElementById('workoutTags').value.split(',').map(t => t.trim()).filter(Boolean),
             sport_type: 'bike'
