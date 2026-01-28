@@ -141,6 +141,8 @@ function updateStats() {
     segments.forEach(s => {
         if (s.type === 'IntervalsT') {
             totalSec += s.repeat * (s.on_duration + s.off_duration);
+        } else if (s.type === 'IntervalsBlock3') {
+            totalSec += s.repeat * (s.dur1 + s.dur2 + s.dur3);
         } else {
             totalSec += s.duration;
         }
@@ -158,6 +160,9 @@ function updateStats() {
     }
 
     document.getElementById('totalDuration').innerText = timeStr;
+    const tss = calculateTSS();
+    const tssElem = document.getElementById('totalTSS');
+    if (tssElem) tssElem.innerText = tss;
 }
 
 function updateChart() {
@@ -179,10 +184,24 @@ function updateChart() {
                 data.push({ x: currentTime / 60, y: s.on_power });
                 currentTime += s.on_duration;
                 data.push({ x: currentTime / 60, y: s.on_power });
-                // Off
                 data.push({ x: currentTime / 60, y: s.off_power });
                 currentTime += s.off_duration;
                 data.push({ x: currentTime / 60, y: s.off_power });
+            }
+        } else if (s.type === 'IntervalsBlock3') {
+            for (let i = 0; i < s.repeat; i++) {
+                // Step 1
+                data.push({ x: currentTime / 60, y: s.pwr1 });
+                currentTime += s.dur1;
+                data.push({ x: currentTime / 60, y: s.pwr1 });
+                // Step 2
+                data.push({ x: currentTime / 60, y: s.pwr2 });
+                currentTime += s.dur2;
+                data.push({ x: currentTime / 60, y: s.pwr2 });
+                // Step 3
+                data.push({ x: currentTime / 60, y: s.pwr3 });
+                currentTime += s.dur3;
+                data.push({ x: currentTime / 60, y: s.pwr3 });
             }
         } else if (s.type === 'FreeRide') {
             data.push({ x: currentTime / 60, y: 0.5 });
@@ -221,6 +240,12 @@ function addSegment(type, defaults = {}) {
         base.off_duration = 60;
         base.on_power = 1.0;
         base.off_power = 0.5;
+        base.duration = 0;
+    } else if (type === 'IntervalsBlock3') {
+        base.repeat = 3;
+        base.dur1 = 60; base.pwr1 = 0.65;
+        base.dur2 = 60; base.pwr2 = 0.85;
+        base.dur3 = 60; base.pwr3 = 1.05;
         base.duration = 0;
     } else if (type === 'FreeRide') {
         base.duration = 600;
@@ -345,7 +370,22 @@ function renderSegmentsList() {
                 <div class="seg-input-group"><label>Off</label><input type="text" value="${formatTime(s.off_duration)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'off_duration', this.value)"></div>
                 <div class="seg-input-group"><label>Off(%)</label><input type="number" value="${toPct(s.off_power)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'off_power', this.value)"></div>
             `;
+        } else if (s.type === 'IntervalsBlock3') {
+            cardStyle = `background: linear-gradient(90deg, ${getZoneBg(s.pwr1)}, ${getZoneBg(s.pwr2)}, ${getZoneBg(s.pwr3)}); border-color: ${getZoneColor(s.pwr2)};`;
+            inputs += `
+                <div class="seg-input-group"><label>Reps</label><input type="number" value="${s.repeat}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'repeat', this.value)"></div>
+                <div style="width:100%; height:1px; background:rgba(255,255,255,0.1); margin:5px 0;"></div>
+                <div class="seg-input-group"><label>D1</label><input type="text" value="${formatTime(s.dur1)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'dur1', this.value)"></div>
+                <div class="seg-input-group"><label>P1(%)</label><input type="number" value="${toPct(s.pwr1)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'pwr1', this.value)"></div>
+                <div class="seg-input-group"><label>D2</label><input type="text" value="${formatTime(s.dur2)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'dur2', this.value)"></div>
+                <div class="seg-input-group"><label>P2(%)</label><input type="number" value="${toPct(s.pwr2)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'pwr2', this.value)"></div>
+                <div class="seg-input-group"><label>D3</label><input type="text" value="${formatTime(s.dur3)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'dur3', this.value)"></div>
+                <div class="seg-input-group"><label>P3(%)</label><input type="number" value="${toPct(s.pwr3)}" style="${inputStyle}" ${selectOnClick} onchange="updateSegment(${s.id}, 'pwr3', this.value)"></div>
+            `;
         }
+
+        // Apply card style if modified inside the block
+        if (s.type === 'IntervalsBlock3') div.style = cardStyle;
 
         div.innerHTML = `
             <div class="drag-handle" title="Drag to reorder" style="color: rgba(255,255,255,0.7);">☰</div>
@@ -428,7 +468,7 @@ function generateZWO(workout) {
     xml += `    <sportType>${escapeXml(meta.sport_type)}</sportType>\n`;
     xml += `    <tags>\n`;
     meta.tags.forEach(tag => {
-        if(tag.trim()) xml += `        <tag name="${escapeXml(tag.trim())}"/>\n`;
+        if (tag.trim()) xml += `        <tag name="${escapeXml(tag.trim())}"/>\n`;
     });
     xml += `    </tags>\n`;
     xml += `    <workout>\n`;
@@ -444,6 +484,12 @@ function generateZWO(workout) {
             xml += `        <Ramp Duration="${s.duration}" PowerLow="${s.power_low}" PowerHigh="${s.power_high}"/>\n`;
         } else if (s.type === 'IntervalsT') {
             xml += `        <IntervalsT Repeat="${s.repeat}" OnDuration="${s.on_duration}" OffDuration="${s.off_duration}" OnPower="${s.on_power}" OffPower="${s.off_power}"/>\n`;
+        } else if (s.type === 'IntervalsBlock3') {
+            for (let i = 0; i < s.repeat; i++) {
+                xml += `        <SteadyState Duration="${s.dur1}" Power="${s.pwr1}"/>\n`;
+                xml += `        <SteadyState Duration="${s.dur2}" Power="${s.pwr2}"/>\n`;
+                xml += `        <SteadyState Duration="${s.dur3}" Power="${s.pwr3}"/>\n`;
+            }
         } else if (s.type === 'FreeRide') {
             xml += `        <FreeRide Duration="${s.duration}"/>\n`;
         } else if (s.type === 'MaxEffort') {
@@ -479,7 +525,7 @@ function parseZWO(xmlContent) {
     // Segments
     const segmentsList = [];
     const workoutElem = xmlDoc.getElementsByTagName("workout")[0];
-    
+
     if (workoutElem) {
         for (let i = 0; i < workoutElem.children.length; i++) {
             const child = workoutElem.children[i];
@@ -488,9 +534,9 @@ function parseZWO(xmlContent) {
             const parseFloatOrZero = (val) => parseFloat(val) || 0;
             const parseIntOrZero = (val) => parseInt(val) || 0;
 
-            let segment = { 
-                type: type, 
-                duration: parseIntOrZero(attr("Duration")) 
+            let segment = {
+                type: type,
+                duration: parseIntOrZero(attr("Duration"))
             };
 
             if (type === 'Warmup' || type === 'CoolDown' || type === 'Ramp') {
@@ -566,16 +612,16 @@ function loadFile(event) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
             const content = e.target.result;
             const data = parseZWO(content);
-            
+
             document.getElementById('workoutName').value = data.metadata.name;
             document.getElementById('workoutAuthor').value = data.metadata.author;
             document.getElementById('workoutDesc').value = data.metadata.description || "";
             document.getElementById('workoutTags').value = data.metadata.tags.join(', ');
-            
+
             segments = data.segments.map(s => ({ ...s, id: Date.now() + Math.random() }));
             updateUI();
         } catch (err) {
@@ -584,4 +630,146 @@ function loadFile(event) {
         }
     };
     reader.readAsText(file);
+}
+
+// --- TSS Calculation ---
+function calculateTSS() {
+    let totalTSS = 0;
+    segments.forEach(s => {
+        let durationSec = s.duration;
+        let intensity = 0;
+
+        if (s.type === 'SteadyState') {
+            intensity = s.power; // already fraction of FTP
+            totalTSS += (s.duration / 3600) * (intensity * intensity) * 100;
+        } else if (s.type === 'IntervalsT') {
+            // On segment
+            let onTSS = (s.on_duration / 3600) * (s.on_power * s.on_power) * 100;
+            // Off segment
+            let offTSS = (s.off_duration / 3600) * (s.off_power * s.off_power) * 100;
+            totalTSS += (onTSS + offTSS) * s.repeat;
+        } else if (s.type === 'IntervalsBlock3') {
+            let tss1 = (s.dur1 / 3600) * (s.pwr1 * s.pwr1) * 100;
+            let tss2 = (s.dur2 / 3600) * (s.pwr2 * s.pwr2) * 100;
+            let tss3 = (s.dur3 / 3600) * (s.pwr3 * s.pwr3) * 100;
+            totalTSS += (tss1 + tss2 + tss3) * s.repeat;
+        } else if (['Warmup', 'CoolDown', 'Ramp'].includes(s.type)) {
+            // Approximate linear ramp TSS: integrate (start + (end-start)*t/T)^2
+            // Simplification: use average power for short ramps
+            let meanSq = (Math.pow(s.power_low, 2) + s.power_low * s.power_high + Math.pow(s.power_high, 2)) / 3;
+            totalTSS += (s.duration / 3600) * meanSq * 100;
+        } else {
+            // FreeRide etc
+            totalTSS += (s.duration / 3600) * (0.5 * 0.5) * 100;
+        }
+    });
+    return Math.round(totalTSS);
+}
+
+
+// --- Workout Library (LocalStorage) ---
+
+function openLibrary() {
+    document.getElementById('libraryModal').style.display = 'flex';
+    // Pre-fill name if exists
+    document.getElementById('libSaveName').value = document.getElementById('workoutName').value;
+    renderLibrary();
+}
+
+function closeLibrary() {
+    document.getElementById('libraryModal').style.display = 'none';
+}
+
+function getLibrary() {
+    const data = localStorage.getItem('zwo_library_desktop');
+    return data ? JSON.parse(data) : [];
+}
+
+function saveToLibrary() {
+    const nameInput = document.getElementById('libSaveName');
+    const name = nameInput.value.trim() || 'Untitled Workout';
+    if (segments.length === 0) { alert('Workout is empty!'); return; }
+
+    const lib = getLibrary();
+
+    // Capture full metadata
+    const metadata = {
+        name: document.getElementById('workoutName').value,
+        author: document.getElementById('workoutAuthor').value,
+        description: document.getElementById('workoutDesc').value,
+        tags: document.getElementById('workoutTags').value
+    };
+
+    const newEntry = {
+        id: Date.now(),
+        name: name,
+        date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
+        segments: segments,
+        metadata: metadata
+    };
+
+    lib.unshift(newEntry); // Add to top
+    localStorage.setItem('zwo_library_desktop', JSON.stringify(lib));
+
+    renderLibrary();
+    alert('Saved to Library!');
+}
+
+function loadFromLibrary(id) {
+    const lib = getLibrary();
+    const entry = lib.find(item => item.id === id);
+    if (entry) {
+        if (confirm(`Load "${entry.name}"? Unsaved changes will be lost.`)) {
+            // Restore segments
+            segments = JSON.parse(JSON.stringify(entry.segments));
+            // Restore ids
+            segments.forEach(s => { if (!s.id) s.id = Math.random(); });
+
+            // Restore Metadata
+            if (entry.metadata) {
+                document.getElementById('workoutName').value = entry.metadata.name || entry.name;
+                document.getElementById('workoutAuthor').value = entry.metadata.author || "Zwifter";
+                document.getElementById('workoutDesc').value = entry.metadata.description || "";
+                document.getElementById('workoutTags').value = entry.metadata.tags || "";
+            }
+
+            updateUI();
+            closeLibrary();
+        }
+    }
+}
+
+function deleteFromLibrary(id) {
+    if (!confirm('Delete this workout?')) return;
+    let lib = getLibrary();
+    lib = lib.filter(item => item.id !== id);
+    localStorage.setItem('zwo_library_desktop', JSON.stringify(lib));
+    renderLibrary();
+}
+
+function renderLibrary() {
+    const list = document.getElementById('libraryList');
+    list.innerHTML = '';
+    const lib = getLibrary();
+
+    if (lib.length === 0) {
+        list.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">No saved workouts</div>';
+        return;
+    }
+
+    lib.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'lib-item';
+        div.innerHTML = `
+            <div class="lib-info">
+                <div class="lib-name">${item.name}</div>
+                <div class="lib-date">${item.date} • ${item.segments.length} segments</div>
+            </div>
+            <div class="lib-actions">
+                <button class="lib-btn lib-load" onclick="loadFromLibrary(${item.id})">Load</button>
+                <button class="lib-btn lib-del" onclick="deleteFromLibrary(${item.id})">Del</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
 }

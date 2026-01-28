@@ -20,8 +20,9 @@
             </div>
             <div class="actions">
                 <input type="file" id="fileInput" accept=".zwo" style="display: none;">
-                <button id="loadBtn" class="btn secondary">Load .zwo</button>
-                <button id="saveBtn" class="btn primary">Save .zwo</button>
+                <button id="loadBtn" class="btn secondary">Import .zwo</button>
+                <button id="libBtn" class="btn secondary" onclick="openLibrary()">Library</button>
+                <button id="saveBtn" class="btn primary">Export .zwo</button>
             </div>
         </header>
 
@@ -54,7 +55,10 @@
                         <span>Duration:</span>
                         <span id="totalDuration" class="highlight">00:00:00</span>
                     </div>
-                    <!-- TSS calculation requires FTP, simplified for now -->
+                    <div class="stat-row">
+                        <span>TSS:</span>
+                        <span id="totalTSS" class="highlight">0</span>
+                    </div>
                 </div>
             </aside>
 
@@ -77,6 +81,7 @@
                             <button class="btn-sm btn-z4" onclick="addSegment('SteadyState', {power: 1.00})">Z4</button>
                             <button class="btn-sm btn-z5" onclick="addSegment('SteadyState', {power: 1.15})">Z5</button>
                             <button class="btn-sm" onclick="addSegment('IntervalsT')">Intervals</button>
+                            <button class="btn-sm" onclick="addSegment('IntervalsBlock3')">Intervals 3</button>
                             <button class="btn-sm" onclick="addSegment('Ramp')">Ramp</button>
                             <button class="btn-sm" onclick="addSegment('CoolDown')">CoolDown</button>
                             <button class="btn-sm" onclick="addSegment('FreeRide')">FreeRide</button>
@@ -89,6 +94,25 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Library Modal -->
+    <div id="libraryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Workout Library (Browser Storage)</h3>
+                <button class="close-modal" onclick="closeLibrary()">&times;</button>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:20px;">
+                <input type="text" id="libSaveName" placeholder="Workout Name for Library"
+                    style="flex:1; padding:10px; border-radius:4px; border:1px solid #444; background:#222; color:white;">
+                <button onclick="saveToLibrary()" class="btn primary">Save to Library</button>
+            </div>
+            <div id="libraryList"
+                style="max-height:400px; overflow-y:auto; border:1px solid var(--border); border-radius:4px;">
+                <!-- List injected here -->
+            </div>
+        </div>
     </div>
 
     <script src="editor.js"></script>
