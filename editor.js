@@ -54,9 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
     document.getElementById('fileInput').addEventListener('change', loadFile);
 
-    // Add initial dummy segment
+    // Add initial dummy segment (Warmup 10min only)
     addSegment('Warmup', { duration: 600, power_low: 0.25, power_high: 0.75 });
-    addSegment('SteadyState', { duration: 300, power: 0.95 });
     updateUI();
 });
 
@@ -391,7 +390,9 @@ function renderSegmentsList() {
             <div class="drag-handle" title="Drag to reorder" style="color: rgba(255,255,255,0.7);">☰</div>
             <div class="segment-content-wrapper">
                 <div class="segment-header">
-                    <span class="segment-type" style="color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${s.type}</span>
+                    <span class="segment-type" style="color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
+                        ${s.type === 'SteadyState' ? `Zone ${ZONES.indexOf(getZone(s.power)) + 1}` : s.type}
+                    </span>
                     <div class="segment-actions">
                          <button class="btn-icon" onclick="duplicateSegment(${s.id})" title="Duplicate">❐</button>
                          <button class="btn-icon btn-remove" onclick="removeSegment(${s.id})" title="Remove" style="color:white; opacity:0.8;">&times;</button>
